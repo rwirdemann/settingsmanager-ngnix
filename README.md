@@ -1,8 +1,9 @@
 # settingsmanager-ngnix
 
 Statische Seite (nginx) mit Formular für eine `ServiceConfig`, die
-als Protobuf-Binärnachricht per Reverse Proxy an einen lokalen
-Go-Service weitergeleitet wird.
+als Protobuf-Binärnachricht per Reverse Proxy an den
+`settingsmanager`-Service weitergeleitet wird. Der Service ist nicht
+Teil dieses Projekts und muss separat laufen.
 
 ## Architektur
 
@@ -66,13 +67,8 @@ go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 
 ## Starten
 
-1. Settingsmanager-Service starten:
-
-   ```
-   cd settingsmanager && go run main.go
-   ```
-
-   Lauscht auf `127.0.0.1:9000`.
+1. Settingsmanager-Service separat starten. Er muss auf
+   `127.0.0.1:9000` lauschen.
 
 2. nginx mit der Projekt-Config starten:
 
@@ -100,4 +96,4 @@ go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 nginx -p $(pwd) -c nginx/nginx.conf -s stop
 ```
 
-Settingsmanager mit Ctrl-C beenden.
+Den settingsmanager-Service separat beenden.
