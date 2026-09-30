@@ -1,0 +1,40 @@
+%%{init: {'theme': 'neutral', 'flowchart': {'curve': 'basis', 'nodeSpacing': 55, 'rankSpacing': 80}} }%%
+flowchart LR
+    subgraph http["Input Channel — HTTP"]
+        direction LR
+        B["Browser"]
+        N["nginx<br/>:8080"]
+        B -- "POST /config/update<br/>(ServiceConfig, protobuf)" --> N
+        B -. "poll GET /config/confirmations/{transactionID}" .-> N
+    end
+
+    subgraph asb["Input Channel — Azure Service Bus"]
+        direction LR
+        Q[["Azure Service Bus<br/>Queue / Topic"]]
+    end
+
+    SM["<b>Settingsmanager</b><br/>:9000<br/>&nbsp;<br/>POST /config/update<br/>GET /config/confirmations/{transactionID}"]
+
+    F1["/tmp/settings/modbus.pb<br/><i>ServiceConfig</i>"]
+    F2["/tmp/settings/modbus-status.pb<br/><i>status: applied</i>"]
+
+    MA["<b>ModbusApp</b>"]
+
+    N -- "proxy_pass<br/>127.0.0.1:9000" --> SM
+    Q -- "receive<br/>(ServiceConfig, protobuf)" --> SM
+
+    SM -- "write" --> F1
+    F1 -- "read" --> MA
+    MA -- "write" --> F2
+    F2 -. "read status" .-> SM
+
+    classDef svc fill:#0f766e,stroke:#0b544e,color:#ffffff,stroke-width:1px
+    classDef app fill:#0369a1,stroke:#024b74,color:#ffffff,stroke-width:1px
+    classDef edge fill:#ffffff,stroke:#d8e2e1,color:#142120
+    classDef broker fill:#eaf0ef,stroke:#0369a1,color:#142120
+    classDef file fill:#fffffe,stroke:#9aa8a7,color:#142120,stroke-dasharray:4 3
+    class SM svc
+    class MA app
+    class B,N edge
+    class Q broker
+    class F1,F2 file
