@@ -13,6 +13,16 @@ Browser  --POST /config/update---------------------> nginx :8080 --> settingsman
 Browser  --GET /config/confirmations/{transactionId}> nginx :8080 --> settingsmanager :9000/config/confirmations/{transactionId}
 ```
 
+Komponentenübersicht mit beiden Input-Channels und der
+dateibasierten Übergabe an die `ModbusApp`:
+
+![Komponentendiagramm](docs/component-diagram.png)
+
+Der Azure-Service-Bus-Channel und die `ModbusApp` sind nicht Teil
+dieses Projekts; das Diagramm zeigt sie zur Einordnung mit.
+Quelle des Diagramms: [`docs/component-diagram.mmd`](docs/component-diagram.mmd)
+(Mermaid, gerendert mit `@mermaid-js/mermaid-cli`).
+
 Sämtliche Nutzdaten sind Protobuf-Nachrichten aus
 [`proto/messages.proto`](proto/messages.proto): der Browser
 schickt eine `modbus_messages.ServiceConfig` (mit einer `modbus_messages.ModbusConfig` im
