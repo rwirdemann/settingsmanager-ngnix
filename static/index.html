@@ -34,12 +34,29 @@
   .error {
     color: #b00020;
   }
+  .format-group {
+    margin: 0.5rem 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.9rem;
+  }
+  .format-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
   <h1>Send ModbusConfig</h1>
   <textarea id="payload"></textarea>
-  <br>
+  <div class="format-group">
+    <span>Format:</span>
+    <label><input type="radio" name="format" value="protobuf" checked> Protobuf</label>
+    <label><input type="radio" name="format" value="json"> JSON</label>
+  </div>
   <button id="send">Send</button>
   <h2>Response</h2>
   <pre id="result">–</pre>
@@ -159,7 +176,7 @@
     // pollConfirmation polls GET /config/confirmations/{transactionID}
     // every pollInterval ms and updates the confirmation panel,
     // until the status is no longer "received".
-    function pollConfirmation(root, transactionId) {
+    function pollConfirmation(root, transactionId, format) {
       if (pollTimer) clearTimeout(pollTimer);
       confirmation.classList.remove('error');
       confirmation.textContent = 'polling …';
@@ -168,23 +185,44 @@
 
       const tick = async () => {
         try {
-          const res = await fetch('/config/confirmations/' +
-            encodeURIComponent(transactionId));
-          const bytes = new Uint8Array(await res.arrayBuffer());
-          if (!res.ok) {
-            confirmation.textContent = res.status + ' ' + res.statusText + '\n' +
-              new TextDecoder().decode(bytes);
-            confirmation.classList.add('error');
-            return;
+          const headers = {};
+          if (format === 'json') {
+            headers['Accept'] = 'application/json';
           }
+          const res = await fetch('/config/confirmations/' +
+            encodeURIComponent(transactionId), { headers });
 
-          const decoded = Confirmation.decode(bytes);
-          const obj = Confirmation.toObject(decoded, { enums: String, defaults: true });
-          obj.createdAt = fromTimestamp(obj.createdAt);
-          confirmation.textContent = JSON.stringify(obj, null, 2);
-
-          if (obj.status === 'received') {
-            pollTimer = setTimeout(tick, pollInterval);
+          if (format === 'json') {
+            if (!res.ok) {
+              const text = await res.text();
+              confirmation.textContent =
+                res.status + ' ' + res.statusText + '\n' + text;
+              confirmation.classList.add('error');
+              return;
+            }
+            const obj = await res.json();
+            confirmation.textContent = JSON.stringify(obj, null, 2);
+            if (obj.status === 'received') {
+              pollTimer = setTimeout(tick, pollInterval);
+            }
+          } else {
+            const bytes = new Uint8Array(await res.arrayBuffer());
+            if (!res.ok) {
+              confirmation.textContent =
+                res.status + ' ' + res.statusText + '\n' +
+                new TextDecoder().decode(bytes);
+              confirmation.classList.add('error');
+              return;
+            }
+            const decoded = Confirmation.decode(bytes);
+            const obj = Confirmation.toObject(
+              decoded, { enums: String, defaults: true }
+            );
+            obj.createdAt = fromTimestamp(obj.createdAt);
+            confirmation.textContent = JSON.stringify(obj, null, 2);
+            if (obj.status === 'received') {
+              pollTimer = setTimeout(tick, pollInterval);
+            }
           }
         } catch (e) {
           confirmation.textContent = 'Polling failed: ' + e.message;
@@ -211,48 +249,90 @@
         return;
       }
 
+      const format = document.querySelector(
+        'input[name="format"]:checked'
+      ).value;
+      const neonpulseID =
+        (input.neonpulseIds && input.neonpulseIds[0]) || '';
+
       try {
         const root = await protoRoot();
-        const ServiceConfig = root.lookupType('modbus_messages.ServiceConfig');
 
-        const details = packAny(root, 'modbus_messages.ModbusConfig', input.modbusConfig || {});
-        const message = ServiceConfig.fromObject({
-          createdAt: toTimestamp(new Date()),
-          transactionId: input.transactionId,
-          serviceName: input.serviceName,
-          neonpulseIds: input.neonpulseIds,
-        });
-        message.details = details;
+        let body, contentType;
+        if (format === 'json') {
+          contentType = 'application/json';
+          body = JSON.stringify({
+            createdAt: new Date().toISOString(),
+            transactionId: input.transactionId,
+            serviceName: input.serviceName,
+            neonpulseIds: input.neonpulseIds,
+            details: input.modbusConfig || {},
+          });
+        } else {
+          contentType = 'application/x-protobuf';
+          const ServiceConfig = root.lookupType(
+            'modbus_messages.ServiceConfig'
+          );
+          const details = packAny(
+            root,
+            'modbus_messages.ModbusConfig',
+            input.modbusConfig || {}
+          );
+          const message = ServiceConfig.fromObject({
+            createdAt: toTimestamp(new Date()),
+            transactionId: input.transactionId,
+            serviceName: input.serviceName,
+            neonpulseIds: input.neonpulseIds,
+          });
+          message.details = details;
+          body = ServiceConfig.encode(message).finish();
+        }
 
-        const body = ServiceConfig.encode(message).finish();
-
-        const neonpulseID = (input.neonpulseIds && input.neonpulseIds[0]) || '';
         const res = await fetch('/config/update', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/x-protobuf',
+            'Content-Type': contentType,
             'X-Message-Type': 'config',
             'X-Neonpulse-Id': neonpulseID,
           },
           body,
         });
 
-        const responseBytes = new Uint8Array(await res.arrayBuffer());
-        if (!res.ok) {
-          result.textContent = res.status + ' ' + res.statusText + '\n' +
-            new TextDecoder().decode(responseBytes);
-          result.classList.add('error');
-          return;
+        if (format === 'json') {
+          if (!res.ok) {
+            const text = await res.text();
+            result.textContent =
+              res.status + ' ' + res.statusText + '\n' + text;
+            result.classList.add('error');
+            return;
+          }
+          const obj = await res.json();
+          result.textContent = res.status + ' ' + res.statusText +
+            '\n' + JSON.stringify(obj, null, 2);
+        } else {
+          const responseBytes =
+            new Uint8Array(await res.arrayBuffer());
+          if (!res.ok) {
+            result.textContent =
+              res.status + ' ' + res.statusText + '\n' +
+              new TextDecoder().decode(responseBytes);
+            result.classList.add('error');
+            return;
+          }
+          const Confirmation = root.lookupType(
+            'modbus_messages.Confirmation'
+          );
+          const decoded = Confirmation.decode(responseBytes);
+          const obj = Confirmation.toObject(
+            decoded, { enums: String, defaults: true }
+          );
+          obj.createdAt = fromTimestamp(obj.createdAt);
+          result.textContent =
+            res.status + ' ' + res.statusText + '\n' +
+            JSON.stringify(obj, null, 2);
         }
 
-        const Confirmation = root.lookupType('modbus_messages.Confirmation');
-        const decoded = Confirmation.decode(responseBytes);
-        const obj = Confirmation.toObject(decoded, { enums: String, defaults: true });
-        obj.createdAt = fromTimestamp(obj.createdAt);
-        result.textContent = res.status + ' ' + res.statusText + '\n' +
-          JSON.stringify(obj, null, 2);
-
-        pollConfirmation(root, input.transactionId);
+        pollConfirmation(root, input.transactionId, format);
       } catch (e) {
         result.textContent = 'Request failed: ' + e.message;
         result.classList.add('error');
