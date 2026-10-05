@@ -74,6 +74,7 @@
     // /config/confirmations/{transactionID} while a transaction is
     // still "received".
     const pollInterval = 1000;
+    const initialPollDelay = 13000;
 
     // randomUUID returns a random v4 UUID. crypto.randomUUID is only
     // available in secure contexts (https or localhost), so fall back
@@ -230,7 +231,7 @@
         }
       };
 
-      tick();
+      pollTimer = setTimeout(tick, initialPollDelay);
     }
 
     document.getElementById('send').addEventListener('click', async () => {
