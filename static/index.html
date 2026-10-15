@@ -95,35 +95,35 @@
     // the textarea, stamped with a fresh transaction ID.
     function defaultPayload(transactionId) {
       return {
-        transactionId: transactionId,
-        serviceName: 'modbus',
-        neonpulseIds: ['1234'],
-        modbusConfig: {
-          transactionId: transactionId,
-          neonpulseId: '1234',
+        transaction_id: transactionId,
+        service_name: 'modbus',
+        neonpulse_ids: ['1234'],
+        modbus_config: {
+          transaction_id: transactionId,
+          neonpulse_id: '1234',
           kontext: 'anlage-1',
           serials: [
             {
               url: 'tcp://localhost:502',
               timeout: 300,
               baud: 19200,
-              dataBits: 8,
+              data_bits: 8,
               parity: 1,
-              stopBits: 1,
+              stop_bits: 1,
               slaves: [
                 {
-                  deviceType: 0,
+                  device_type: 0,
                   address: 111,
                   name: 111,
-                  fwVersion: '1.0',
+                  fw_version: '1.0',
                   type: 'trafo-integrated',
-                  hardwareMaker: '',
-                  hardwareModel: '',
-                  spannungsebeneTeilanlage: '',
+                  hardware_maker: '',
+                  hardware_model: '',
+                  spannungsebene_teilanlage: '',
                   rebirth: false,
-                  scanRate: 60,
+                  scan_rate: 60,
                   leittechnikkomponente: 1,
-                  useIec104Thresholds: false,
+                  use_iec104_thresholds: false,
                 },
               ],
             },
@@ -135,10 +135,14 @@
     textarea.value = JSON.stringify(defaultPayload(randomUUID()), null, 2);
 
     // protoRoot lazily loads and caches the shared .proto
-    // definitions served by nginx under /proto/.
+    // definitions served by nginx under /proto/. keepCase keeps the
+    // snake_case field names from the .proto, so the JSON in the
+    // textarea maps straight onto them.
     async function protoRoot() {
       if (!root) {
-        root = await protobuf.load('/proto/messages.proto');
+        root = await new protobuf.Root().load(
+          '/proto/messages.proto', { keepCase: true }
+        );
       }
       return root;
     }
@@ -254,7 +258,7 @@
         'input[name="format"]:checked'
       ).value;
       const neonpulseID =
-        (input.neonpulseIds && input.neonpulseIds[0]) || '';
+        (input.neonpulse_ids && input.neonpulse_ids[0]) || '';
 
       try {
         const root = await protoRoot();
@@ -263,11 +267,11 @@
         if (format === 'json') {
           contentType = 'application/json';
           body = JSON.stringify({
-            createdAt: new Date().toISOString(),
-            transactionId: input.transactionId,
-            serviceName: input.serviceName,
-            neonpulseIds: input.neonpulseIds,
-            details: input.modbusConfig || {},
+            created_at: new Date().toISOString(),
+            transaction_id: input.transaction_id,
+            service_name: input.service_name,
+            neonpulse_ids: input.neonpulse_ids,
+            details: input.modbus_config || {},
           });
         } else {
           contentType = 'application/x-protobuf';
@@ -277,13 +281,13 @@
           const details = packAny(
             root,
             'modbus_messages.ModbusConfig',
-            input.modbusConfig || {}
+            input.modbus_config || {}
           );
           const message = ServiceConfig.fromObject({
             createdAt: toTimestamp(new Date()),
-            transactionId: input.transactionId,
-            serviceName: input.serviceName,
-            neonpulseIds: input.neonpulseIds,
+            transaction_id: input.transaction_id,
+            service_name: input.service_name,
+            neonpulse_ids: input.neonpulse_ids,
           });
           message.details = details;
           body = ServiceConfig.encode(message).finish();
@@ -333,7 +337,7 @@
             JSON.stringify(obj, null, 2);
         }
 
-        pollConfirmation(root, input.transactionId, format);
+        pollConfirmation(root, input.transaction_id, format);
       } catch (e) {
         result.textContent = 'Request failed: ' + e.message;
         result.classList.add('error');
