@@ -1,7 +1,7 @@
 # settingsmanager-ngnix
 
 Statische Seite (nginx) mit Formular für eine `ServiceConfig`, die
-als Protobuf-Binärnachricht per Reverse Proxy an den
+als JSON per Reverse Proxy an den
 `settingsmanager`-Service weitergeleitet wird. Der Service ist nicht
 Teil dieses Projekts und muss separat laufen.
 
@@ -23,50 +23,18 @@ dieses Projekts; das Diagramm zeigt sie zur Einordnung mit.
 Quelle des Diagramms: [`docs/component-diagram.mmd`](docs/component-diagram.mmd)
 (Mermaid, gerendert mit `@mermaid-js/mermaid-cli`).
 
-Sämtliche Nutzdaten sind Protobuf-Nachrichten aus
-[`proto/messages.proto`](proto/messages.proto): der Browser
-schickt eine `modbus_messages.ServiceConfig` (mit einer `modbus_messages.ModbusConfig` im
-`details`-Feld, gepackt als `google.protobuf.Any`) binär an
-`/config/update`. Der `settingsmanager`-Service registriert die
-Transaktion und antwortet sofort mit einer
-`modbus_messages.Confirmation{status: received}`. Der Browser
-dekodiert die Antwort mit
-[protobuf.js](https://github.com/protobufjs/protobuf.js), das die
-`.proto`-Datei zur Laufzeit über `/proto/messages.proto` lädt, und
-pollt danach im Sekundentakt `/config/confirmations/{transactionId}`,
-bis `settingsmanager` den Status nach 5 Sekunden intern auf
-`applied` gesetzt hat.
+Sämtliche Nutzdaten sind JSON: der Browser schickt eine
+`ServiceConfig` (mit der `ModbusConfig` im `details`-Feld) als
+`application/json` an `/config/update`. Der
+`settingsmanager`-Service registriert die Transaktion und antwortet
+sofort mit einer `Confirmation{status: received}`. Der Browser
+zeigt die Antwort an und pollt danach im Sekundentakt
+`/config/confirmations/{transactionId}`, bis `settingsmanager` den
+Status nach 5 Sekunden intern auf `applied` gesetzt hat.
 
 Sequenzdiagramm des Ablaufs:
 
 ![Sequenzdiagramm](docs/sequence-diagram.png)
-
-## Protobuf-Typen neu generieren
-
-Nach Änderungen an `proto/messages.proto`:
-
-```
-cd proto
-protoc --proto_path=. --proto_path=<protobuf-include-dir> \
-  --go_out=. --go_opt=module=settingsmanager-ngnix/proto messages.proto
-```
-
-`<protobuf-include-dir>` ist der `include`-Ordner der
-protobuf-Installation, der die Well-known-Types wie
-`google/protobuf/any.proto` enthält:
-
-- macOS: `brew install protobuf` (Include-Ordner z. B. via
-  `brew --prefix protobuf`)
-- Arch/Omarchy: `sudo pacman -S protobuf` (Include-Ordner
-  `/usr/include`)
-
-Voraussetzung ist außerdem `protoc-gen-go`:
-
-```
-go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-```
-
-(landet in `$(go env GOPATH)/bin`, muss im `PATH` liegen)
 
 ## Voraussetzungen
 
@@ -96,9 +64,9 @@ go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 3. Seite öffnen: http://127.0.0.1:8080
 
    JSON-Eingabe im Textfeld anpassen und "Senden" klicken. Die
-   Seite wandelt die Eingabe im Browser in eine
-   `modbus_messages.ServiceConfig`-Protobuf-Nachricht um, schickt sie binär und
-   zeigt die dekodierte `Confirmation`-Antwort direkt darunter an.
+   Seite schickt die Eingabe als `ServiceConfig`-JSON an
+   `/config/update` und zeigt die `Confirmation`-Antwort direkt
+   darunter an.
 
 ## Stoppen
 

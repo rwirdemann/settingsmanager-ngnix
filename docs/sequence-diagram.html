@@ -218,7 +218,7 @@
     <div class="eyebrow">Local Architecture</div>
     <h1>How a submit becomes a confirmation</h1>
     <p class="dek">
-      Two processes and a protobuf-encoded request-response cycle:
+      Two processes and a JSON request-response cycle:
       the browser submits a config, gets an immediate
       <code>received</code> confirmation, then polls a status
       endpoint until settingsmanager has applied it 5 seconds
@@ -249,7 +249,7 @@ sequenceDiagram
 
     rect rgb(234, 245, 244)
     Note over B,N: Phase 1 — submit config
-    B->>N: POST /config/update  (ServiceConfig, protobuf)
+    B->>N: POST /config/update  (ServiceConfig, JSON)
     N->>S: proxy_pass POST /config/update
     Note right of S: register transaction as "received"
     S-->>N: 200 Confirmation{status: received}
@@ -280,9 +280,8 @@ sequenceDiagram
       <h2><span class="tag">Phase 1</span>Immediate response</h2>
       <p>
         nginx serves <code>static/index.html</code>. Clicking
-        "Send" encodes the form as a
-        <code>modbus_messages.ServiceConfig</code> protobuf message
-        and posts it binary to <code>POST /config/update</code>;
+        "Send" posts the form as a <code>ServiceConfig</code> JSON
+        body to <code>POST /config/update</code>;
         nginx passes it straight through to
         <code>settingsmanager:9000</code>, which registers the
         transaction and replies immediately with

@@ -4,7 +4,7 @@ flowchart LR
         direction LR
         B["Browser"]
         N["nginx<br/>:8080"]
-        B -- "POST /config/update<br/>(ServiceConfig, protobuf)" --> N
+        B -- "POST /config/update<br/>(ServiceConfig, JSON)" --> N
         B -. "poll GET /config/confirmations/{transactionID}" .-> N
     end
 
@@ -21,7 +21,7 @@ flowchart LR
     MA["<b>ModbusApp</b>"]
 
     N -- "proxy_pass<br/>127.0.0.1:9000" --> SM
-    Q -- "receive<br/>(ServiceConfig, protobuf)" --> SM
+    Q -- "receive<br/>(ServiceConfig, JSON)" --> SM
 
     SM -- "write" --> F1
     F1 -- "read" --> MA

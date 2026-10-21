@@ -10,7 +10,7 @@ sequenceDiagram
 
     rect rgb(234, 245, 244)
     Note over B,N: Phase 1 — submit config
-    B->>N: POST /config/update  (ServiceConfig, protobuf)
+    B->>N: POST /config/update  (ServiceConfig, JSON)
     N->>S: proxy_pass POST /config/update
     Note right of S: register transaction as "received"
     S-->>N: 200 Confirmation{status: received}

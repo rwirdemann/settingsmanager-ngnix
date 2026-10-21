@@ -2,8 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Protobuf Submit Demo</title>
-<script src="https://cdn.jsdelivr.net/npm/protobufjs@7.4.0/dist/protobuf.js"></script>
+<title>JSON Submit Demo</title>
 <style>
   body {
     font-family: system-ui, sans-serif;
@@ -34,29 +33,11 @@
   .error {
     color: #b00020;
   }
-  .format-group {
-    margin: 0.5rem 0;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    font-size: 0.9rem;
-  }
-  .format-group label {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    cursor: pointer;
-  }
 </style>
 </head>
 <body>
   <h1>Send ModbusConfig</h1>
   <textarea id="payload"></textarea>
-  <div class="format-group">
-    <span>Format:</span>
-    <label><input type="radio" name="format" value="protobuf"> Protobuf</label>
-    <label><input type="radio" name="format" value="json" checked> JSON</label>
-  </div>
   <button id="send">Send</button>
   <h2>Response</h2>
   <pre id="result">–</pre>
@@ -67,7 +48,6 @@
     const textarea = document.getElementById('payload');
     const result = document.getElementById('result');
     const confirmation = document.getElementById('confirmation');
-    let root = null;
     let pollTimer = null;
 
     // pollInterval is how often the frontend polls
@@ -102,28 +82,28 @@
           transaction_id: transactionId,
           neonpulse_id: '1234',
           kontext: 'anlage-1',
-          serials: [
+          serial: [
             {
               url: 'tcp://localhost:502',
               timeout: 300,
-              baud: 19200,
+              speed: 19200,
               data_bits: 8,
+              // parity: 0 = none, 1 = even, 2 = odd
               parity: 1,
               stop_bits: 1,
               slaves: [
                 {
-                  device_type: 0,
                   address: 111,
                   name: 111,
-                  fw_version: '1.0',
                   type: 'trafo-integrated',
                   hardware_maker: '',
                   hardware_model: '',
+                  leittechnikkomponente: 1,
                   spannungsebene_teilanlage: '',
+                  fw_version: '1.0',
                   rebirth: false,
                   scan_rate: 60,
-                  leittechnikkomponente: 1,
-                  use_iec104_thresholds: false,
+                  use_iec_104_thresholds: false,
                 },
               ],
             },
@@ -134,100 +114,32 @@
 
     textarea.value = JSON.stringify(defaultPayload(randomUUID()), null, 2);
 
-    // protoRoot lazily loads and caches the shared .proto
-    // definitions served by nginx under /proto/. keepCase keeps the
-    // snake_case field names from the .proto, so the JSON in the
-    // textarea maps straight onto them.
-    async function protoRoot() {
-      if (!root) {
-        root = await new protobuf.Root().load(
-          '/proto/messages.proto', { keepCase: true }
-        );
-      }
-      return root;
-    }
-
-    // packAny encodes obj as typeName and wraps the bytes in a
-    // google.protobuf.Any message, as ServiceConfig.details expects.
-    function packAny(root, typeName, obj) {
-      const Type = root.lookupType(typeName);
-      const message = Type.fromObject(obj);
-      const bytes = Type.encode(message).finish();
-      const Any = root.lookupType('google.protobuf.Any');
-      return Any.create({
-        type_url: 'type.googleapis.com/' + typeName,
-        value: bytes,
-      });
-    }
-
-    // toTimestamp converts a JS Date into a google.protobuf.Timestamp
-    // {seconds, nanos} pair.
-    function toTimestamp(date) {
-      const millis = date.getTime();
-      return {
-        seconds: Math.floor(millis / 1000),
-        nanos: (millis % 1000) * 1e6,
-      };
-    }
-
-    // fromTimestamp converts a decoded {seconds, nanos} pair back
-    // into an ISO date string for display.
-    function fromTimestamp(ts) {
-      if (!ts) return null;
-      const millis = Number(ts.seconds) * 1000 + Math.round(ts.nanos / 1e6);
-      return new Date(millis).toISOString();
-    }
-
     // pollConfirmation polls GET /config/confirmations/{transactionID}
     // every pollInterval ms and updates the confirmation panel,
     // until the status is no longer "received".
-    function pollConfirmation(root, transactionId, format) {
+    function pollConfirmation(transactionId) {
       if (pollTimer) clearTimeout(pollTimer);
       confirmation.classList.remove('error');
       confirmation.textContent = 'polling …';
 
-      const Confirmation = root.lookupType('modbus_messages.Confirmation');
-
       const tick = async () => {
         try {
-          const headers = {};
-          if (format === 'json') {
-            headers['Accept'] = 'application/json';
-          }
           const res = await fetch('/config/confirmations/' +
-            encodeURIComponent(transactionId), { headers });
+            encodeURIComponent(transactionId),
+            { headers: { 'Accept': 'application/json' } });
 
-          if (format === 'json') {
-            if (!res.ok) {
-              const text = await res.text();
-              confirmation.textContent =
-                res.status + ' ' + res.statusText + '\n' + text;
-              confirmation.classList.add('error');
-              return;
-            }
-            const obj = await res.json();
-            confirmation.textContent = JSON.stringify(obj, null, 2);
-            if (obj.status === 'received') {
-              pollTimer = setTimeout(tick, pollInterval);
-            }
-          } else {
-            const bytes = new Uint8Array(await res.arrayBuffer());
-            if (!res.ok) {
-              confirmation.textContent =
-                res.status + ' ' + res.statusText + '\n' +
-                new TextDecoder().decode(bytes);
-              confirmation.classList.add('error');
-              return;
-            }
-            const decoded = Confirmation.decode(bytes);
-            const obj = Confirmation.toObject(
-              decoded, { enums: String, defaults: true }
-            );
-            obj.createdAt = fromTimestamp(obj.createdAt);
-            confirmation.textContent = JSON.stringify(obj, null, 2);
-            if (obj.status === 'received') {
-              pollTimer = setTimeout(tick, pollInterval);
-            }
+          if (!res.ok) {
+            const text = await res.text();
+            confirmation.textContent =
+              res.status + ' ' + res.statusText + '\n' + text;
+            confirmation.classList.add('error');
+            return;
+          }
+
+          const obj = await res.json();
+          confirmation.textContent = JSON.stringify(obj, null, 2);
+          if (obj.status === 'received') {
+            pollTimer = setTimeout(tick, pollInterval);
           }
         } catch (e) {
           confirmation.textContent = 'Polling failed: ' + e.message;
@@ -254,90 +166,41 @@
         return;
       }
 
-      const format = document.querySelector(
-        'input[name="format"]:checked'
-      ).value;
       const neonpulseID =
         (input.neonpulse_ids && input.neonpulse_ids[0]) || '';
 
       try {
-        const root = await protoRoot();
-
-        let body, contentType;
-        if (format === 'json') {
-          contentType = 'application/json';
-          body = JSON.stringify({
-            created_at: new Date().toISOString(),
-            transaction_id: input.transaction_id,
-            service_name: input.service_name,
-            neonpulse_ids: input.neonpulse_ids,
-            details: input.modbus_config || {},
-          });
-        } else {
-          contentType = 'application/x-protobuf';
-          const ServiceConfig = root.lookupType(
-            'modbus_messages.ServiceConfig'
-          );
-          const details = packAny(
-            root,
-            'modbus_messages.ModbusConfig',
-            input.modbus_config || {}
-          );
-          const message = ServiceConfig.fromObject({
-            createdAt: toTimestamp(new Date()),
-            transaction_id: input.transaction_id,
-            service_name: input.service_name,
-            neonpulse_ids: input.neonpulse_ids,
-          });
-          message.details = details;
-          body = ServiceConfig.encode(message).finish();
-        }
+        const body = JSON.stringify({
+          created_at: new Date().toISOString(),
+          transaction_id: input.transaction_id,
+          service_name: input.service_name,
+          neonpulse_ids: input.neonpulse_ids,
+          details: input.modbus_config || {},
+        });
 
         const res = await fetch('/config/update', {
           method: 'POST',
           headers: {
-            'Content-Type': contentType,
+            'Content-Type': 'application/json',
             'X-Message-Type': 'config',
             'X-Neonpulse-Id': neonpulseID,
           },
           body,
         });
 
-        if (format === 'json') {
-          if (!res.ok) {
-            const text = await res.text();
-            result.textContent =
-              res.status + ' ' + res.statusText + '\n' + text;
-            result.classList.add('error');
-            return;
-          }
-          const obj = await res.json();
-          result.textContent = res.status + ' ' + res.statusText +
-            '\n' + JSON.stringify(obj, null, 2);
-        } else {
-          const responseBytes =
-            new Uint8Array(await res.arrayBuffer());
-          if (!res.ok) {
-            result.textContent =
-              res.status + ' ' + res.statusText + '\n' +
-              new TextDecoder().decode(responseBytes);
-            result.classList.add('error');
-            return;
-          }
-          const Confirmation = root.lookupType(
-            'modbus_messages.Confirmation'
-          );
-          const decoded = Confirmation.decode(responseBytes);
-          const obj = Confirmation.toObject(
-            decoded, { enums: String, defaults: true }
-          );
-          obj.createdAt = fromTimestamp(obj.createdAt);
+        if (!res.ok) {
+          const text = await res.text();
           result.textContent =
-            res.status + ' ' + res.statusText + '\n' +
-            JSON.stringify(obj, null, 2);
+            res.status + ' ' + res.statusText + '\n' + text;
+          result.classList.add('error');
+          return;
         }
 
-        pollConfirmation(root, input.transaction_id, format);
+        const obj = await res.json();
+        result.textContent = res.status + ' ' + res.statusText +
+          '\n' + JSON.stringify(obj, null, 2);
+
+        pollConfirmation(input.transaction_id);
       } catch (e) {
         result.textContent = 'Request failed: ' + e.message;
         result.classList.add('error');
