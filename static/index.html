@@ -201,6 +201,16 @@
           '\n' + JSON.stringify(obj, null, 2);
 
         pollConfirmation(input.transaction_id);
+
+        // Stamp the textarea with a fresh transaction ID so the
+        // next click starts a new transaction instead of resending
+        // the one currently being polled. Edits to the rest of the
+        // payload are kept.
+        input.transaction_id = randomUUID();
+        if (input.modbus_config) {
+          input.modbus_config.transaction_id = input.transaction_id;
+        }
+        textarea.value = JSON.stringify(input, null, 2);
       } catch (e) {
         result.textContent = 'Request failed: ' + e.message;
         result.classList.add('error');
