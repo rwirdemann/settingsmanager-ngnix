@@ -5,7 +5,7 @@ flowchart LR
         B["Browser"]
         N["nginx<br/>:8080"]
         B -- "POST /config/update<br/>(ServiceConfig, JSON)" --> N
-        B -. "poll GET /config/confirmations/{transactionID}" .-> N
+        B -. "poll GET /transactions/{transactionID}" .-> N
     end
 
     subgraph asb["Input Channel — Azure Service Bus"]
@@ -13,7 +13,7 @@ flowchart LR
         Q[["Azure Service Bus<br/>Queue / Topic"]]
     end
 
-    SM["<b>Settingsmanager</b><br/>:9000<br/>&nbsp;<br/>POST /config/update<br/>GET /config/confirmations/{transactionID}"]
+    SM["<b>Settingsmanager</b><br/>:9000<br/>&nbsp;<br/>POST /config/update<br/>GET /transactions/{transactionID}"]
 
     F1["/tmp/settings/modbus.pb<br/><i>ServiceConfig</i>"]
     F2["/tmp/settings/modbus-status.pb<br/><i>status: applied</i>"]

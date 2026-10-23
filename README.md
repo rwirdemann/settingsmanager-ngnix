@@ -10,7 +10,7 @@ Teil dieses Projekts und muss separat laufen.
 ```
 Browser  --GET /----------------------------------> nginx :8080 --> static/index.html
 Browser  --POST /config/update---------------------> nginx :8080 --> settingsmanager :9000/config/update
-Browser  --GET /config/confirmations/{transactionId}> nginx :8080 --> settingsmanager :9000/config/confirmations/{transactionId}
+Browser  --GET /transactions/{transactionId}-------> nginx :8080 --> settingsmanager :9000/transactions/{transactionId}
 ```
 
 Komponentenübersicht mit beiden Input-Channels und der
@@ -29,7 +29,7 @@ Sämtliche Nutzdaten sind JSON: der Browser schickt eine
 `settingsmanager`-Service registriert die Transaktion und antwortet
 sofort mit einer `Confirmation{status: received}`. Der Browser
 zeigt die Antwort an und pollt danach im Sekundentakt
-`/config/confirmations/{transactionId}`, bis `settingsmanager` den
+`/transactions/{transactionId}`, bis `settingsmanager` den
 Status nach 5 Sekunden intern auf `applied` gesetzt hat.
 
 Sequenzdiagramm des Ablaufs:

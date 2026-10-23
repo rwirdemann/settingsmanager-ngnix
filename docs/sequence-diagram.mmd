@@ -20,8 +20,8 @@ sequenceDiagram
     Note right of S: after 5s, transaction<br/>transitions to "applied"
 
     loop poll while status == "received"
-        B->>N: GET /config/confirmations/{transactionId}
-        N->>S: proxy_pass GET /config/confirmations/{transactionId}
+        B->>N: GET /transactions/{transactionId}
+        N->>S: proxy_pass GET /transactions/{transactionId}
         S-->>N: 200 Confirmation{status}
         N-->>B: 200 Confirmation{status}
     end

@@ -51,7 +51,7 @@
     let pollTimer = null;
 
     // pollInterval is how often the frontend polls
-    // /config/confirmations/{transactionID} while a transaction is
+    // /transactions/{transactionID} while a transaction is
     // still "received".
     const pollInterval = 1000;
     const initialPollDelay = 13000;
@@ -129,7 +129,7 @@
       };
     }
 
-    // pollConfirmation polls GET /config/confirmations/{transactionID}
+    // pollConfirmation polls GET /transactions/{transactionID}
     // every pollInterval ms and updates the confirmation panel,
     // until the status is no longer "received".
     function pollConfirmation(transactionId) {
@@ -139,7 +139,7 @@
 
       const tick = async () => {
         try {
-          const res = await fetch('/config/confirmations/' +
+          const res = await fetch('/transactions/' +
             encodeURIComponent(transactionId),
             { headers: { 'Accept': 'application/json' } });
 

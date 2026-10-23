@@ -261,8 +261,8 @@ sequenceDiagram
     rect rgb(234, 245, 244)
     Note over B,N: Phase 2 — poll for the result
     loop poll while status == "received"
-        B->>N: GET /config/confirmations/{transactionId}
-        N->>S: proxy_pass GET /config/confirmations/{transactionId}
+        B->>N: GET /transactions/{transactionId}
+        N->>S: proxy_pass GET /transactions/{transactionId}
         S-->>N: 200 Confirmation{status}
         N-->>B: 200 Confirmation{status}
     end
@@ -292,7 +292,7 @@ sequenceDiagram
       <h2><span class="tag">Phase 2</span>Result via polling</h2>
       <p>
         The browser then polls
-        <code>GET /config/confirmations/{transactionId}</code>
+        <code>GET /transactions/{transactionId}</code>
         once a second. <code>settingsmanager</code> flips the
         transaction to <code>applied</code> 5 seconds after
         submission; the next poll response carries that status and
