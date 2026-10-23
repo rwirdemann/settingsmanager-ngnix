@@ -114,6 +114,21 @@
 
     textarea.value = JSON.stringify(defaultPayload(randomUUID()), null, 2);
 
+    // statusNames maps the numeric Status the settingsmanager sends
+    // onto the names from its Status enum.
+    const statusNames = ['received', 'applied', 'error', 'discarded'];
+
+    // normalizeConfirmation replaces the raw enum number the
+    // settingsmanager sends as "status" with its name, so the
+    // panel shows "applied" rather than 1. All other fields are
+    // passed through unchanged.
+    function normalizeConfirmation(obj) {
+      return {
+        ...obj,
+        status: statusNames[obj.status] ?? obj.status,
+      };
+    }
+
     // pollConfirmation polls GET /config/confirmations/{transactionID}
     // every pollInterval ms and updates the confirmation panel,
     // until the status is no longer "received".
@@ -136,7 +151,7 @@
             return;
           }
 
-          const obj = await res.json();
+          const obj = normalizeConfirmation(await res.json());
           confirmation.textContent = JSON.stringify(obj, null, 2);
           if (obj.status === 'received') {
             pollTimer = setTimeout(tick, pollInterval);
@@ -196,7 +211,7 @@
           return;
         }
 
-        const obj = await res.json();
+        const obj = normalizeConfirmation(await res.json());
         result.textContent = res.status + ' ' + res.statusText +
           '\n' + JSON.stringify(obj, null, 2);
 
