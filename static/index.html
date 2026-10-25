@@ -255,17 +255,17 @@
       // the path segment, so body and URL cannot disagree.
       input.service_name = service;
 
-      // GET /services/{service}/config does not return neonpulse_ids,
-      // so fall back to the ID carried inside the config itself.
-      const neonpulseID = (input.neonpulse_ids && input.neonpulse_ids[0]) ||
-        details.neonpulse_id || '';
+      // GET /services/{service}/config does not return a top-level
+      // neonpulse_id, so fall back to the one carried inside the
+      // config itself.
+      const neonpulseID = input.neonpulse_id || details.neonpulse_id || '';
 
       try {
         const body = JSON.stringify({
           created_at: new Date().toISOString(),
           transaction_id: transactionId,
           service_name: service,
-          neonpulse_ids: input.neonpulse_ids || [neonpulseID],
+          neonpulse_id: neonpulseID,
           details,
         });
 
