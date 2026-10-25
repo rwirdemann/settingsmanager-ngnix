@@ -2,13 +2,32 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>JSON Submit Demo</title>
+<title>SettingsManager Web</title>
 <style>
   body {
     font-family: system-ui, sans-serif;
     max-width: 640px;
     margin: 3rem auto;
     padding: 0 1rem;
+  }
+  .endpoints {
+    list-style: none;
+    margin: 0 0 1.5rem;
+    padding: 0.75rem 1rem;
+    background: #f4f4f4;
+    font-size: 0.8125rem;
+  }
+  .endpoints li + li {
+    margin-top: 0.3rem;
+  }
+  .endpoints code {
+    font-weight: 600;
+  }
+  input#service {
+    font-family: monospace;
+    font-size: 0.875rem;
+    padding: 0.25rem 0.4rem;
+    margin: 0 0 0.75rem 0.4rem;
   }
   textarea {
     width: 100%;
@@ -36,9 +55,21 @@
 </style>
 </head>
 <body>
-  <h1>Send ModbusConfig</h1>
-  <textarea id="payload"></textarea>
-  <button id="send">Send</button>
+  <h1>SettingsManager Web</h1>
+  <ul class="endpoints">
+    <li><code>GET /services/{service}/config</code> — fetch the config
+      the service currently holds</li>
+    <li><code>PUT /services/{service}/config</code> — submit a new
+      config</li>
+    <li><code>GET /transactions/{transactionID}</code> — poll the
+      status of a transaction</li>
+  </ul>
+  <label for="service">Service</label>
+  <input id="service" value="modbus" autocomplete="off">
+  <textarea id="payload"
+    placeholder="Click GET to fetch the config the settingsmanager currently holds for the service, then edit it and click PUT."></textarea>
+  <button id="get">GET</button>
+  <button id="put">PUT</button>
   <h2>Response</h2>
   <pre id="result">–</pre>
   <h2>Confirmation</h2>
@@ -46,6 +77,7 @@
 
   <script>
     const textarea = document.getElementById('payload');
+    const serviceInput = document.getElementById('service');
     const result = document.getElementById('result');
     const confirmation = document.getElementById('confirmation');
     let pollTimer = null;
@@ -71,48 +103,18 @@
         hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
     }
 
-    // defaultPayload builds the example ModbusConfig request shown in
-    // the textarea, stamped with a fresh transaction ID.
-    function defaultPayload(transactionId) {
-      return {
-        transaction_id: transactionId,
-        service_name: 'modbus',
-        neonpulse_ids: ['1234'],
-        modbus_config: {
-          transaction_id: transactionId,
-          neonpulse_id: '1234',
-          kontext: 'anlage-1',
-          serial: [
-            {
-              url: 'tcp://localhost:502',
-              timeout: 300,
-              speed: 19200,
-              data_bits: 8,
-              // parity: 0 = none, 1 = even, 2 = odd
-              parity: 1,
-              stop_bits: 1,
-              slaves: [
-                {
-                  address: 111,
-                  name: 111,
-                  type: 'trafo-integrated',
-                  hardware_maker: '',
-                  hardware_model: '',
-                  leittechnikkomponente: 1,
-                  spannungsebene_teilanlage: '',
-                  fw_version: '1.0',
-                  rebirth: false,
-                  scan_rate: 60,
-                  use_iec_104_thresholds: false,
-                },
-              ],
-            },
-          ],
-        },
-      };
+    // configURL builds the /services/{service}/config path the
+    // settingsmanager exposes for reading and writing a config.
+    function configURL(service) {
+      return '/services/' + encodeURIComponent(service) + '/config';
     }
 
-    textarea.value = JSON.stringify(defaultPayload(randomUUID()), null, 2);
+    // currentService returns the service named in the input field.
+    // It is the path segment of both endpoints, so without it there
+    // is nothing to address.
+    function currentService() {
+      return serviceInput.value.trim();
+    }
 
     // statusNames maps the numeric Status the settingsmanager sends
     // onto the names from its Status enum.
@@ -165,12 +167,71 @@
       pollTimer = setTimeout(tick, initialPollDelay);
     }
 
-    document.getElementById('send').addEventListener('click', async () => {
+    // The GET button fetches the config the settingsmanager
+    // currently holds for the service and puts it into the textarea,
+    // ready to be edited and sent back.
+    document.getElementById('get').addEventListener('click', async () => {
+      result.textContent = '…';
+      result.classList.remove('error');
+
+      const service = currentService();
+      if (!service) {
+        result.textContent = 'Missing service name';
+        result.classList.add('error');
+        return;
+      }
+
+      try {
+        const res = await fetch(configURL(service),
+          { headers: { 'Accept': 'application/json' } });
+
+        const text = await res.text();
+        if (!res.ok) {
+          result.textContent =
+            res.status + ' ' + res.statusText + '\n' + text;
+          result.classList.add('error');
+          return;
+        }
+
+        const obj = JSON.parse(text);
+
+        // Stamp a fresh transaction ID so the loaded config can go
+        // straight back out as a new transaction instead of reusing
+        // the ID of the one that last wrote it.
+        obj.transaction_id = randomUUID();
+        if (obj.details) {
+          obj.details.transaction_id = obj.transaction_id;
+        }
+
+        textarea.value = JSON.stringify(obj, null, 2);
+        result.textContent = res.status + ' ' + res.statusText;
+      } catch (e) {
+        result.textContent = 'Request failed: ' + e.message;
+        result.classList.add('error');
+      }
+    });
+
+    // The PUT button submits the textarea content as a new config
+    // and then polls the resulting transaction.
+    document.getElementById('put').addEventListener('click', async () => {
       result.textContent = '…';
       result.classList.remove('error');
       confirmation.textContent = '–';
       confirmation.classList.remove('error');
       if (pollTimer) clearTimeout(pollTimer);
+
+      const service = currentService();
+      if (!service) {
+        result.textContent = 'Missing service name';
+        result.classList.add('error');
+        return;
+      }
+
+      if (!textarea.value.trim()) {
+        result.textContent = 'Nothing to send — click GET first';
+        result.classList.add('error');
+        return;
+      }
 
       let input;
       try {
@@ -181,20 +242,35 @@
         return;
       }
 
-      const neonpulseID =
-        (input.neonpulse_ids && input.neonpulse_ids[0]) || '';
+      const details = input.details || {};
+
+      // A payload typed from scratch carries no transaction ID, so
+      // mint one here. It has to exist before the request goes out,
+      // because it is what the confirmation is polled by.
+      const transactionId = input.transaction_id || randomUUID();
+      details.transaction_id = transactionId;
+
+      // Same for service_name: a payload typed from scratch has
+      // none. It is taken from the Service field, which also forms
+      // the path segment, so body and URL cannot disagree.
+      input.service_name = service;
+
+      // GET /services/{service}/config does not return neonpulse_ids,
+      // so fall back to the ID carried inside the config itself.
+      const neonpulseID = (input.neonpulse_ids && input.neonpulse_ids[0]) ||
+        details.neonpulse_id || '';
 
       try {
         const body = JSON.stringify({
           created_at: new Date().toISOString(),
-          transaction_id: input.transaction_id,
-          service_name: input.service_name,
-          neonpulse_ids: input.neonpulse_ids,
-          details: input.modbus_config || {},
+          transaction_id: transactionId,
+          service_name: service,
+          neonpulse_ids: input.neonpulse_ids || [neonpulseID],
+          details,
         });
 
-        const res = await fetch('/config/update', {
-          method: 'POST',
+        const res = await fetch(configURL(service), {
+          method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'X-Message-Type': 'config',
@@ -215,15 +291,15 @@
         result.textContent = res.status + ' ' + res.statusText +
           '\n' + JSON.stringify(obj, null, 2);
 
-        pollConfirmation(input.transaction_id);
+        pollConfirmation(transactionId);
 
         // Stamp the textarea with a fresh transaction ID so the
         // next click starts a new transaction instead of resending
         // the one currently being polled. Edits to the rest of the
         // payload are kept.
         input.transaction_id = randomUUID();
-        if (input.modbus_config) {
-          input.modbus_config.transaction_id = input.transaction_id;
+        if (input.details) {
+          input.details.transaction_id = input.transaction_id;
         }
         textarea.value = JSON.stringify(input, null, 2);
       } catch (e) {

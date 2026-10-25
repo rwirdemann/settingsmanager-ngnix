@@ -9,7 +9,8 @@ Teil dieses Projekts und muss separat laufen.
 
 ```
 Browser  --GET /----------------------------------> nginx :8080 --> static/index.html
-Browser  --POST /config/update---------------------> nginx :8080 --> settingsmanager :9000/config/update
+Browser  --GET /services/{service}/config----------> nginx :8080 --> settingsmanager :9000/services/{service}/config
+Browser  --PUT /services/{service}/config----------> nginx :8080 --> settingsmanager :9000/services/{service}/config
 Browser  --GET /transactions/{transactionId}-------> nginx :8080 --> settingsmanager :9000/transactions/{transactionId}
 ```
 
@@ -25,7 +26,9 @@ Quelle des Diagramms: [`docs/component-diagram.mmd`](docs/component-diagram.mmd)
 
 Sämtliche Nutzdaten sind JSON: der Browser schickt eine
 `ServiceConfig` (mit der `ModbusConfig` im `details`-Feld) als
-`application/json` an `/config/update`. Der
+`application/json` per `PUT` an `/services/{service}/config`.
+Der Service im Pfad kommt aus dem Eingabefeld der Seite (im
+Beispiel `modbus`). Der
 `settingsmanager`-Service registriert die Transaktion und antwortet
 sofort mit einer `Confirmation{status: received}`. Der Browser
 zeigt die Antwort an und pollt danach im Sekundentakt
@@ -63,10 +66,24 @@ Sequenzdiagramm des Ablaufs:
 
 3. Seite öffnen: http://127.0.0.1:8080
 
-   JSON-Eingabe im Textfeld anpassen und "Senden" klicken. Die
-   Seite schickt die Eingabe als `ServiceConfig`-JSON an
-   `/config/update` und zeigt die `Confirmation`-Antwort direkt
-   darunter an.
+   Das Textfeld startet leer. Ablauf ist GET → bearbeiten → PUT:
+
+   - **GET** holt mit `GET /services/{service}/config` die Config,
+     die der `settingsmanager` aktuell für den Service hält, und
+     schreibt sie ins Textfeld. Der Service kommt aus dem
+     Eingabefeld darüber (Default `modbus`) und bildet den
+     Pfadsegment-Teil beider Endpunkte.
+   - **PUT** schickt den Inhalt des Textfelds als
+     `ServiceConfig`-JSON per `PUT` an
+     `/services/{service}/config` und zeigt die
+     `Confirmation`-Antwort darunter an.
+
+   Beide Male stempelt die Seite eine frische `transaction_id` in
+   die Payload, damit jedes PUT eine neue Transaktion ist statt
+   die ID der zuletzt angewendeten wiederzuverwenden.
+
+   Hat der `settingsmanager` für den Service noch nichts
+   gespeichert, antwortet GET mit `404 Not Found`.
 
 ## Stoppen
 
